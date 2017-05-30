@@ -1,0 +1,224 @@
+<link rel="import" href="../iron-autogrow-textarea/iron-autogrow-textarea.html">
+<link rel="import" href="../iron-collapse/iron-collapse.html">
+<link rel="import" href="../iron-icons/iron-icons.html">
+<link rel="import" href="../iron-icon/iron-icon.html">
+<link rel="import" href="../paper-input/paper-textarea.html">
+<link rel="import" href="../paper-dialog/paper-dialog.html">
+<link rel="import" href="../paper-button/paper-button.html">
+<link rel="import" href="./code-editor.html">
+<link rel="import" href="../taaabs-themes/taaabs-theme.html">
+
+<dom-module id="taaabs-spare">
+  <template>
+    <style include="taaabs-theme"></style>
+    <style is="custom-style">
+      :host {
+        display: block;
+      }
+
+      :host #icons-div iron-icon{
+        padding-left: 10px;
+      }
+    </style>
+
+    <paper-dialog id="query-preview">
+      <h2>Request Preview</h2>
+      <paper-dialog-scrollable>
+        <pre style="max-height: 80vh; max-width: 90vw" class="swag-scroll">
+          [[_queryPreview]]
+        </pre>
+      </paper-dialog-scrollable>
+    </paper-dialog>
+
+    <div id="icons-div" class="fit-width flex-horizontal flex-reversed flex-center-align">
+      <iron-icon class="fgBlack fgBlackH hoverable clickable" icon="icons:description" title="dictionnary"></iron-icon>
+      <iron-icon class="fgBlack fgBlackH hoverable clickable" icon="icons:pageview" title="Sparql query preview" on-click="_onQueryPreviewClick"></iron-icon>
+      <span class="fgLog no-select">FR</span>
+      <span style="padding-left:2px; padding-right: 2px"> | </span>
+      <span class="fgBlack fgBlackH hoverable clickable">EN</span>
+    </div>
+    <div class="fit-width">
+      <code-editor id="editor" value="{{request}}"></code-editor>
+    </div>
+    <div class="fit-width flex-horizontal flex-equal-around-justified" style="padding: 10px">
+      <paper-button noink raised class="bgLog bgLogH fgWhite hoverable clickable" on-click="_onQueryClick">
+        Query
+        <iron-icon style="margin-left: 10px" icon="icons:cloud-download"></iron-icon>
+      </paper-button>
+    </div>
+  </template>
+
+
+  <script>
+    TAAABS.TaaabsSpare = Polymer({
+
+      is: 'taaabs-spare',
+
+      properties: {
+
+        //////////
+        // I18N //
+        //////////
+
+        /**
+         * Localization.
+         * fr, en.
+         *
+         * @attribute language
+         * @type String
+         */
+        language: {
+          type: String,
+          notify: true,
+        },
+
+        traceUrl: {
+          type: String,
+          notify: true,
+          value: ""
+        },
+
+        _trace: {
+          type: Object,
+          notify: true,
+          value: null,
+          observer: '_traceChanged'
+        },
+
+        _endPoint: {
+          type: String,
+          notify: true,
+          value: ""
+        },
+
+        _mode: {
+          type: Number,
+          notify: true,
+          value: 0
+        },
+
+        _expected: {
+          type: Array,
+          notify: true,
+          value: []
+        },
+
+        _model: {
+          type: Object,
+          notify: true,
+          value: null,
+          observer: '_onModelChanged'
+        },
+
+        _queryPreview:{
+          type: String,
+          notify: true,
+          value: ""
+        }
+
+      },
+
+      behaviors: [
+        Polymer.AppLocalizeBehavior
+      ],
+
+      listeners: {
+        'editor.keyup': '_onEditorKeyup'
+      },
+
+      ready: function() {
+
+      },
+
+      attached: function() {
+        // Load i18n json.
+        this.loadResources(this.resolveUrl('./locales.json'));
+        // set editor checkin function
+        this.$.editor.set('checkin', function(){
+          try {
+            var result = TAAABS.TaaabsSpare.parserCLNFr.parse(this.value);
+            this.set('errorStart', -1);
+            this.set('errorEnd', -1);
+            this.set('expected', []);
+            this.set('errorMessage', "");
+            this.displayText();
+          } catch (e) {
+            this.set('errorMessage', e.message);
+            this.set('errorStart', e.location.start.column);
+            this.set('errorEnd',   e.location.end.column);
+            var exp = [];
+            for(var i in e.expected)exp.push(e.expected[i].value);
+            this.set('expected', exp);
+          }
+        });
+      },
+
+      _languageChanged: function() {
+        // TODO Change parser language here.
+      },
+
+      refresh: function() {
+        console.log(this.traceUrl);
+        if (this.traceUrl !== "") {
+          this.fire('GET_RESOURCE', {
+            url: this.traceUrl,
+            obj: "_trace"
+          });
+          this.set('_endPoint', this.traceUrl + "@obsels");
+        }
+      },
+
+      _traceChanged: function() {
+        if (this._trace) {
+          TAAABS.TaaabsSpare.parserCLNFr.trace_modelURI = this._trace.model_uri + '#';
+          this.fire('GET_RESOURCE', {
+            url: this._trace.model_uri,
+            obj: "_model"
+          });
+        }
+      },
+
+      _onModelChanged: function() {},
+
+      _onQueryPreviewClick: function(){
+        try {
+          var result = TAAABS.TaaabsSpare.parserCLNFr.parse(this.request);
+          this.set('_queryPreview', result);
+        } catch (e) {
+          this.set('_queryPreview', "An error occured: \n"+e.message);
+        }
+        this.$['query-preview'].toggle();
+      },
+
+      _onQueryClick: function(){
+
+        try {
+          var query = TAAABS.TaaabsSpare.parserCLNFr.parse(this.request);
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', this._endPoint, true);
+          console.log(this._endPoint);
+          xhr.setRequestHeader('Accept', 'application/json');
+          xhr.setRequestHeader('Content-Type', 'application/sparql-query');
+          xhr.withCredentials = true;
+          xhr.onerror = function(err) {
+            console.log(err + xhr.status);
+          };
+          xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+              console.log(JSON.parse(xhr.response));
+            }
+          }.bind(this);
+
+          xhr.send(query);
+        } catch (e) {
+          console.log(e);
+        }
+
+
+      }
+
+    });
+  </script>
+  <script type="text/javascript" src="parser.js"></script>
+  <script type="text/javascript" src="ftmXhyxZ.js"></script>
+</dom-module>

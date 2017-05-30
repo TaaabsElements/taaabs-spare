@@ -1,0 +1,225 @@
+<link rel="import" href="../taaabs-themes/taaabs-theme.html">
+<link href="https://fonts.googleapis.com/css?family=Roboto+Mono" rel="stylesheet">
+<dom-module id="code-editor">
+  <template strip-whitespace>
+    <style include="taaabs-theme"></style>
+    <style>
+      :host {
+        display: block;
+        padding: 0px;
+      }
+
+      :host div{
+        font: 12px 'Roboto Mono', monospace;
+      }
+
+      :host textarea{
+        font: 12px 'Roboto Mono', monospace;
+      }
+
+      :host #container{
+        height: 130px;
+      }
+
+      :host #editor-background{
+        height: 130px;
+        border: solid 1px black;
+        line-height: 16px;
+        max-height: 130px;
+      }
+
+      :host #editor{
+        padding: 0;
+        margin: 0;
+        margin-top: -130px;
+        line-height: 16px;
+        background-color: rgba(0,0,0,0);
+      }
+
+    </style>
+
+    <div id="container" class="fit-width">
+      <div id="editor-background" class="swag-scroll">
+        <span id="span-before"></span>
+        <span id="span-error" class="bgError fgWhite"></span>
+        <span id="span-after"></span>
+        <span id="span-complete" class="fgGrey"></span>
+      </div>
+      <textarea id="editor" rows=8 class="fit-width" spellcheck="false"></textarea>
+    </div>
+    <div id="error-messages" class="fit-width fgError">[[errorMessage]]</div>
+
+  </template>
+  <script>
+    Polymer({
+      is: 'code-editor',
+
+      properties: {
+        /**
+         * AutocompleteFunction
+         *
+         * @attribute checkin
+         * @type Function
+         */
+        checkin: {
+         type: Function,
+         notify: true,
+         value: null
+        },
+
+        /**
+         * The value of the code-editor.
+         *
+         * @attribute value
+         * @type String
+         */
+        value: {
+         type: String,
+         notify: true,
+         value: ""
+        },
+
+        /**
+         * Start index of the invalid text.
+         *
+         * @attribute errorStart
+         * @type Number
+         */
+        errorStart: {
+         type: Number,
+         notify: true,
+         value: -1
+        },
+
+        /**
+         * End index of the invalid text.
+         *
+         * @attribute errorEnd
+         * @type Number
+         */
+        errorEnd: {
+         type: Number,
+         notify: true,
+         value: -1
+        },
+
+        /**
+         * Error message.
+         *
+         * @attribute errorMessage
+         * @type String
+         */
+        errorMessage: {
+         type: String,
+         notify: true,
+         value: ""
+        },
+
+        /**
+         * List of expected values.
+         *
+         * @attribute expected
+         * @type Array
+         */
+        expected: {
+         type: Array,
+         notify: true,
+         value: []
+        },
+
+        /**
+         * Index of the current expected value.
+         *
+         * @attribute _expectedIndex
+         * @type Number
+         */
+        _expectedIndex: {
+          type: Number,
+          notify: true,
+          value: 0
+        },
+      },
+
+      listeners: {
+        'editor.keydown': '_onPreventDefault',
+        'editor.keyup'  : '_onEditorKeyUp'
+      },
+
+      attached: function(){},
+
+      _onPreventDefault: function(e){
+        console.log(e);
+        // If backspace
+        if(e.which === 8) this._fillText();
+      },
+
+      _onEditorKeyUp: function(e){
+        this._fillText();
+      },
+
+      _fillText: function(){
+        this.set('value', this.$.editor.value);
+        if(this.checkin === null) this.displayText();
+        else{
+          this.checkin();
+          this._fillExpected();
+        }
+      },
+
+      _fillExpected: function(){
+        this.displayText();
+        if(this.expected.length > 0){
+          var lastWord = this._getLastWord();
+          var nextExpected = this._findNextExpected(lastWord);
+          if(this.errorStart === this.errorEnd){
+            var space = (lastWord !== null) ? ' ' : '';
+            this.$['span-complete'].textContent = space + this.expected[this._expectedIndex];
+          }
+          else{
+            if(nextExpected === null){
+              this.highlightError(this.errorStart, this.errorEnd);
+            }
+            else{
+              this.$['span-complete'].innerHTML = this.expected[this._expectedIndex].replace(lastWord, '');
+            }
+          }
+        }
+      },
+
+      _findNextExpected: function(lastWord){
+        var s = this._expectedIndex;
+        while(s < this.expected.length){
+          if(this.expected[s].indexOf(lastWord) === 0){
+            return this.expected[s];
+          }
+          s++;
+          if(s === this.expected.length){
+            s = 0;
+            if(s === this._expectedIndex) return null;
+          }
+        }
+      },
+
+      _getLastWord: function(){
+        var reg = /(\S+)$/g;
+        var res = this.value.match(reg);
+        if(res !== null) return res[0];
+        return res;
+      },
+
+      displayText: function(){
+        this.$['span-before'].innerHTML = this.value.replace(/\n/g, '<br/>');
+        this.$['span-error'].innerHTML = this.$['span-after'].innerHTML = '';
+        this.$['span-complete'].innerHTML = '';
+      },
+
+      highlightError: function(start, end){
+        this.$['span-before'].innerHTML = this.value.substring(0, start).replace(/\n/g, '<br/>');
+        this.$['span-error'].innerHTML = this.value.substring(start, end).replace(/\n/g, '<br/>');
+        this.$['span-after'].innerHTML = this.value.substring(end).replace(/\n/g, '<br/>');
+        this.$['span-complete'].innerHTML = '';
+      },
+
+    });
+  </script>
+</dom-module>
