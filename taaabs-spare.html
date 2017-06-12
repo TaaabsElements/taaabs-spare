@@ -6,7 +6,10 @@
 <link rel="import" href="../paper-dialog/paper-dialog.html">
 <link rel="import" href="../paper-button/paper-button.html">
 <link rel="import" href="./code-editor.html">
+<link rel="import" href="./taaabs-spare-result-handler.html">
 <link rel="import" href="../taaabs-themes/taaabs-theme.html">
+
+
 
 <dom-module id="taaabs-spare">
   <template>
@@ -30,21 +33,26 @@
       </paper-dialog-scrollable>
     </paper-dialog>
 
-    <div id="icons-div" class="fit-width flex-horizontal flex-reversed flex-center-align">
-      <iron-icon class="fgBlack fgBlackH hoverable clickable" icon="icons:description" title="dictionnary"></iron-icon>
-      <iron-icon class="fgBlack fgBlackH hoverable clickable" icon="icons:pageview" title="Sparql query preview" on-click="_onQueryPreviewClick"></iron-icon>
-      <span class="fgLog no-select">FR</span>
-      <span style="padding-left:2px; padding-right: 2px"> | </span>
-      <span class="fgBlack fgBlackH hoverable clickable">EN</span>
-    </div>
-    <div class="fit-width">
-      <code-editor id="editor" value="{{request}}"></code-editor>
-    </div>
-    <div class="fit-width flex-horizontal flex-equal-around-justified" style="padding: 10px">
-      <paper-button noink raised class="bgLog bgLogH fgWhite hoverable clickable" on-click="_onQueryClick">
-        Query
-        <iron-icon style="margin-left: 10px" icon="icons:cloud-download"></iron-icon>
-      </paper-button>
+    <div class="flex-vertical">
+      <div id="icons-div" class="fit-width flex-horizontal flex-reversed flex-center-align" style="min-height: 24px;">
+        <iron-icon class="fgBlack fgBlackH hoverable clickable" icon="icons:description" title="dictionnary"></iron-icon>
+        <iron-icon class="fgBlack fgBlackH hoverable clickable" icon="icons:pageview" title="Sparql query preview" on-click="_onQueryPreviewClick"></iron-icon>
+        <span class="fgLog no-select">FR</span>
+        <span style="padding-left:2px; padding-right: 2px"> | </span>
+        <span class="fgBlack fgBlackH hoverable clickable">EN</span>
+      </div>
+      <div class="fit-width">
+        <code-editor id="editor" value="{{request}}"></code-editor>
+      </div>
+      <div class="fit-width flex-horizontal flex-equal-around-justified" style="padding: 10px">
+        <paper-button noink raised class="bgLog bgLogH fgWhite hoverable clickable" on-click="_onQueryClick">
+          Query
+          <iron-icon style="margin-left: 10px" icon="icons:cloud-download"></iron-icon>
+        </paper-button>
+      </div>
+      <div class="fit-width swag-scroll">
+        <taaabs-spare-result-handler id="result-handler" trace-url="[[traceUrl]]" trace="[[_trace]]" trace-stats="[[_traceStats]]"></taaabs-spare-result-handler>
+      </div>
     </div>
   </template>
 
@@ -76,6 +84,14 @@
           type: String,
           notify: true,
           value: ""
+        },
+
+        prefixes: {
+          type: Array,
+          notify: true,
+          value: [
+            ['', 'http://liris.cnrs.fr/silex/2009/ktbs#']
+          ]
         },
 
         _trace: {
@@ -136,7 +152,7 @@
         // set editor checkin function
         this.$.editor.set('checkin', function(){
           try {
-            var result = TAAABS.TaaabsSpare.parserCLNFr.parse(this.value);
+            var result = parser.parse(this.value);
             this.set('errorStart', -1);
             this.set('errorEnd', -1);
             this.set('expected', []);
@@ -170,11 +186,18 @@
 
       _traceChanged: function() {
         if (this._trace) {
-          TAAABS.TaaabsSpare.parserCLNFr.trace_modelURI = this._trace.model_uri + '#';
-          this.fire('GET_RESOURCE', {
-            url: this._trace.model_uri,
-            obj: "_model"
-          });
+          this.push('prefixes', ['m', this._trace.model_uri + '#']);
+          this._trace.get_stats()
+              .then(function(stats){
+                this.set('_traceStats', stats);
+                this.fire('GET_RESOURCE', {
+                  url: this._trace.model_uri,
+                  obj: "_model"
+                });
+              }.bind(this))
+              .catch(function(err){
+                console.log(err);
+              })
         }
       },
 
@@ -182,7 +205,7 @@
 
       _onQueryPreviewClick: function(){
         try {
-          var result = TAAABS.TaaabsSpare.parserCLNFr.parse(this.request);
+          var result = parser.parse(this.request);
           this.set('_queryPreview', result);
         } catch (e) {
           this.set('_queryPreview', "An error occured: \n"+e.message);
@@ -193,7 +216,11 @@
       _onQueryClick: function(){
 
         try {
-          var query = TAAABS.TaaabsSpare.parserCLNFr.parse(this.request);
+          var parsed = parser.parse(this.request);
+          var query = '';
+          for(var i in this.prefixes)
+            query += 'PREFIX ' + this.prefixes[i][0] + ': <' + this.prefixes[i][1] + '>\n';
+          query += parsed.query;
           var xhr = new XMLHttpRequest();
           xhr.open('POST', this._endPoint, true);
           console.log(this._endPoint);
@@ -205,7 +232,9 @@
           };
           xhr.onreadystatechange = function() {
             if (xhr.readyState === 4) {
-              console.log(JSON.parse(xhr.response));
+              var res = JSON.parse(xhr.response);
+              // TODO Replace with parser result.
+              this.$['result-handler'].handle(res, parsed.requests);
             }
           }.bind(this);
 
@@ -219,6 +248,6 @@
 
     });
   </script>
-  <script type="text/javascript" src="parser.js"></script>
-  <script type="text/javascript" src="ftmXhyxZ.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pegjs/0.7.0/peg.min.js"></script>
+  <script src="test_grammaire.js"></script>
 </dom-module>

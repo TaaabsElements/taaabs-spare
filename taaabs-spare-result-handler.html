@@ -1,0 +1,271 @@
+<link rel="import" href="../paper-tabs/paper-tabs.html">
+<<link rel="import" href="../taaabs-trace-timeline-container/taaabs-trace-timeline-container.html">
+
+<dom-module id="taaabs-spare-result-handler">
+  <template>
+    <style include="taaabs-theme"></style>
+    <style>
+      :host {
+        padding: 0px;
+      }
+
+      paper-tabs {
+        --paper-tabs-selection-bar-color: var(--paper-blue-100);
+        --paper-tabs-selection-bar: {
+          border-width: 5px;
+        }
+        --paper-tabs : {
+          background-color: var(--paper-blue-500);
+          color: white;
+        }
+      }
+
+    </style>
+
+    <paper-tabs selected="{{selected}}" no-slide noink>
+      <paper-tab>Raw datas</paper-tab>
+      <paper-tab>Timeline</paper-tab>
+      <paper-tab>Google Chart</paper-tab>
+    </paper-tabs>
+    <div class="fit-width swag-scroll" id="target"></div>
+
+  </template>
+  <script>
+    Polymer({
+      is: 'taaabs-spare-result-handler',
+
+      properties: {
+        datas: {
+          type: Object,
+          value: null
+        },
+
+        requests: {
+          type: Array,
+          value: []
+        },
+
+        sortedDatas: {
+          type: Array,
+          value: []
+        },
+
+        selected: {
+          type: Number,
+          notify: true,
+          value:0
+        },
+
+        traceUrl:{
+          type: String,
+          value: null
+        },
+
+        trace:{
+          type: Object,
+          value: null
+        }
+      },
+
+      handle: function(datas, requests){
+        this.set('datas', datas);
+        this.set('requests', requests);
+        this.sortDatas();
+        this.display();
+      },
+
+      display: function(){
+        switch(this.selected){
+
+          case 0:
+            this._displayRaw();
+            break;
+
+          case 1:
+            this._displayTimeline();
+            break;
+
+          case 2:
+            this._displayChart();
+            break;
+        }
+      },
+
+      sortDatas: function(){
+        var drb = this.datas.results.bindings;
+        console.log(this.datas);
+
+        var sortedDatas = [];
+        for(var i in this.requests){
+          sortedDatas.push({
+            request: this.requests[i],
+            values: [[]]
+          });
+        }
+        for(var i in drb){
+          var sd = sortedDatas[Number(drb[i].query_index.value)];
+          sd.values.push(new Array(sd.values[0].length));
+          var lr = sd.values[sd.values.length - 1];
+          for(var j in drb[i]){
+            if(j !== "query_index"){
+              var index = sd.values[0].indexOf(j);
+              if(index === -1){
+                sd.values[0].push(j);
+                lr.push(drb[i][j].value)
+              }
+              else{
+                lr[index] = drb[i][j].value;
+              }
+            }
+          }
+        }
+        console.log(sortedDatas);
+        this.set('sortedDatas', sortedDatas);
+      },
+
+      _getDataType: function(data){
+        return 'value';
+      },
+
+      /** ================================================================== **/
+      /**  Display Raw                                                       **/
+
+      _displayRaw: function(){
+        var div = document.createElement('div');
+        div.classList.add('fit-width', 'flex-vertical');
+        for(var i in this.sortedDatas){
+          var title = document.createElement('h4');
+          title.textContent = this.sortedDatas[i].request;
+          var table = document.createElement('table');
+          table.classList.add('fit-width');
+          var tr = document.createElement('tr');
+          for(var k in this.sortedDatas[i].values[0]){
+            var h = document.createElement('th');
+            h.textContent = this.sortedDatas[i].values[0][k];
+            tr.appendChild(h);
+          }
+          table.appendChild(tr);
+          for(var j = 1 ; j < this.sortedDatas[i].values.length; j++ ){
+            tr = document.createElement('tr');
+            for(var k in this.sortedDatas[i].values[j]){
+              var td = document.createElement('td');
+              td.textContent = this.sortedDatas[i].values[j][k];
+              tr.appendChild(td);
+            }
+            table.appendChild(tr);
+          }
+          div.appendChild(title);
+          div.appendChild(table);
+        }
+        this.$.target.appendChild(div);
+      },
+
+      /** ================================================================== **/
+      /**  Display Timeline                                                  **/
+
+      _displayTimeline: function(){
+        // Get the obsels
+        var obsel_list = this._getObselsLists();
+        // Create a new timeline
+        console.log(obsel_list);
+        var timeline = new TAAABS.TraceTimeline();
+        timeline.style.height = '400px';
+        this.$.target.appendChild(timeline);
+        timeline.initVisu();
+        timeline.setTemporalBounds(this.traceStats['stats:minTime'], this.traceStats['stats:maxTime']);
+        timeline.addObsels(obsel_list);
+      },
+
+      _getObselsLists: function(){
+        var obs = [];
+        for(var i in this.sortedDatas){
+          if(this.sortedDatas[i].request.indexOf('récupérer les obsels') !== -1){
+            for(var j = 0; j < this.sortedDatas[i].values[0].length; j++){
+              if(this.sortedDatas[i].values[0][j].indexOf('subject') === 0){
+                s_index = j;
+              }
+              else if(this.sortedDatas[i].values[0][j].indexOf('verb') === 0){
+                v_index = j;
+              }
+              else if(this.sortedDatas[i].values[0][j].indexOf('predicate') === 0){
+                p_index = j;
+              }
+            }
+            var o = {
+              '@id': this._formatObselId(this.sortedDatas[i].values[1][s_index])
+            }
+            for(var j = 1; j < this.sortedDatas[i].values.length; j++){
+                var tmp = this._setObselAttribute(o, this.sortedDatas[i].values[j][s_index], this.sortedDatas[i].values[j][v_index], this.sortedDatas[i].values[j][p_index]);
+                if(tmp !== null){
+                  obs.push({
+                    'obsel':o,
+                    'visible': true,
+                    'symbol':{
+                      'shape': 'CIRCLE',
+                      'color': "#ff0000"
+                    }
+                  });
+                  o = tmp;
+                }
+            }
+            obs.push({
+              'obsel':o,
+              'visible': true,
+              'symbol':{
+                'shape': 'CIRCLE',
+                'color': "#ff0000"
+              }
+            });
+          }
+        }
+        return obs;
+      },
+
+      _setObselAttribute: function(obs, subject, verb, predicate){
+        var o = null;
+        if(obs['@id'] === this._formatObselId(subject)){
+          obs[this._formatObselAttribute(verb)] = predicate;
+        }
+        else{
+          var v = this._formatObselAttribute(verb);
+          o = {
+            '@id': this._formatObselId(subject)
+          }
+          o[v] = predicate;
+        }
+        return o;
+      },
+
+      _formatObselId: function(rawid){
+        return rawid.replace(this.traceUrl, '');
+      },
+
+      _formatObselAttribute: function(rawattr){
+        if(rawattr === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"){
+          return "@type";
+        }
+        else if(rawattr === "http://liris.cnrs.fr/silex/2009/ktbs#hasTrace"){
+          return "hasTrace";
+        }
+        else if(rawattr === "http://liris.cnrs.fr/silex/2009/ktbs#hasSubject"){
+          return "subject";
+        }
+        else if(rawattr === "http://liris.cnrs.fr/silex/2009/ktbs#hasBegin"){
+          return "begin";
+        }
+        else if(rawattr === "http://liris.cnrs.fr/silex/2009/ktbs#hasEnd"){
+          return "end";
+        }
+        else if(rawattr === "http://liris.cnrs.fr/silex/2009/ktbs#hasSourceObsel"){
+          return "hasSourceObsel";
+        }
+        else{
+          return rawattr.replace(this.trace.model_uri+'#', 'm:');
+        }
+      }
+
+
+
+    });
+  </script>
+</dom-module>
