@@ -1,0 +1,37 @@
+{
+  "name": "taaabs-spare",
+  "version": "0.1.0",
+  "description": "A graphical component that helps users create sparql query using a supervised natural language.",
+  "keywords": [
+    "web-components",
+    "polymer",
+    "spare",
+    "taaabs"
+  ],
+  "authors": [
+    "Rémi Casado"
+  ],
+  "repository": {
+   "type": "git",
+   "url": "https://github.com/TaaabsElements/taaabs-spare.git"
+  },
+  "main": "taaabs-spare.html",
+  "license": "https://github.com/TaaabsElements/taaabs-spare/LICENSE",
+  "dependencies": {
+    "polymer"                : "Polymer/polymer#<2.*",
+    "paper-tabs"             : "PolymerElements/paper-tabs#<2.*",
+    "paper-input"            : "PolymerElements/paper-input#<2.*",
+    "paper-button"           : "PolymerElements/paper-button#<2.*",
+    "paper-dialog"           : "PolymerElements/paper-dialog#<2.*",
+    "iron-collapse"          : "PolymerElements/iron-collapse#<2.*",
+    "iron-icons"             : "PolymerElements/iron-icons#<2.*",
+    "iron-icon"              : "PolymerElements/iron-icon#<2.*",
+    "taaabs-trace-timeline"  : "TaaabsElements/taaabs-trace-timeline",
+    "taaabs-themes"          : "TaaabsElements/taaabs-themes"
+  },
+  "devDependencies": {
+    "iron-component-page": "polymerelements/iron-component-page#<2.*",
+    "webcomponentsjs": "webcomponents/webcomponentsjs#<2.*"
+  },
+  "ignore": []
+}
